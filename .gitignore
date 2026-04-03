@@ -1,0 +1,13 @@
+io
+target
+.vscode
+tarantool_data
+
+.env
+
+grpcurl*
+grpcurl_1.9.3_linux_amd64.deb
+
+.venv
+
+python_tests/__pycache__

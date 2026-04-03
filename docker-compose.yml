@@ -1,0 +1,32 @@
+services:
+  tarantool:
+    image: tarantool/tarantool:latest
+    container_name: tarantool
+    ports:
+      - "3301:3301"
+    volumes:
+      - tarantool_data:/var/lib/tarantool
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  grpc-server:
+    build: .
+    container_name: grpc-server
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    depends_on:
+      tarantool:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+
+volumes:
+  tarantool_data:
+
+networks:
+  app-network:
+    driver: bridge
