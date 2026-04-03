@@ -16,7 +16,7 @@ service KeyValueService {
 
 message PutRequest {
     string key = 1;
-    bytes value = 2;
+    optional bytes value = 2;
 }
 
 message PutResponse {
@@ -29,7 +29,7 @@ message GetRequest {
 }
 
 message GetResponse {
-    bytes value = 1;
+    optional bytes value = 1;
     bool found = 2;
     string error_message = 3;
 }

@@ -16,8 +16,12 @@ import java.util.concurrent.CompletableFuture;
 import com.google.protobuf.ByteString;
 import com.vktest.grpc.proto.RangeResponse;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 public class TarantoolConnection implements AutoCloseable {
+    private static final Logger log = LoggerFactory.getLogger(TarantoolConnection.class);
     private final TarantoolBoxClient client;
     private final TarantoolBoxSpace space;
 
@@ -64,47 +68,66 @@ public class TarantoolConnection implements AutoCloseable {
         }
     }
 
-public CompletableFuture<Boolean> put(String key, byte[] value) {
-    List<Object> tuple = Arrays.asList(key, value);
-    return space.replace(tuple)
-            .thenApply(result -> true)
-            .exceptionally(ex -> false);
-}
-
-
-    public CompletableFuture<Optional<byte[]>> get(String key) {
-        List<String> keys = Arrays.asList(key);
+    public CompletableFuture<Boolean> put(String key, byte[] value) {
+        List<Object> tuple = Arrays.asList(key, value);
         
-        return space.select(keys)
-                .thenApply(response -> {
-                    List<Tuple<List<?>>> tuples = response.get();
-                    
-                    if (tuples == null || tuples.isEmpty()) {
-                        return Optional.<byte[]>empty();
-                    }
-                    
-                    Tuple<List<?>> tuple = tuples.get(0);
-                    List<?> values = tuple.get();
-                    
-                    if (values.size() > 1 && values.get(1) instanceof byte[]) {
-                        return Optional.of((byte[]) values.get(1));
-                    }
-                    return Optional.<byte[]>empty();
+        if (value == null || value.length == 0) {
+            tuple = Arrays.asList(key, null);
+            return space.replace(tuple)
+                    .thenApply(result -> true)
+                    .exceptionally(ex -> {
+                        return false;
+                    });
+        }
+        
+        return space.replace(tuple)
+                .thenApply(result -> {
+                    return true;
                 })
                 .exceptionally(ex -> {
-                    return Optional.<byte[]>empty();
+                    return false;
+                });
+    }
+
+    public CompletableFuture<Optional<byte[]>> get(String key) {
+        String spaceName = System.getenv().getOrDefault("SPACE_NAME", "KV");
+        String lua = String.format(
+            "return box.space.%s:get('%s')",
+            spaceName, key
+        );
+        
+        return client.eval(lua)
+                .thenApply(response -> {
+                    List<?> result = response.get();
+                    if (result == null || result.isEmpty()) {
+                        return Optional.empty();
+                    }
+                    
+                    Object tuple = result.get(0);
+                    if (tuple instanceof List) {
+                        List<?> tupleList = (List<?>) tuple;
+                        if (tupleList.size() > 1) {
+                            Object value = tupleList.get(1);
+                            return Optional.ofNullable((byte[]) value);
+                        }
+                    }
+                    return Optional.empty();
                 });
     }
 
     public CompletableFuture<Boolean> delete(String key) {
-        List<String> keys = Arrays.asList(key);
-        return space.delete(keys)
-                .thenApply(result -> {
-                    if (result != null) {
-                        List<?> deletedData = result.get();
-                        return deletedData != null && !deletedData.isEmpty();
-                    }
-                    return false;
+        String spaceName = System.getenv().getOrDefault("SPACE_NAME", "KV");
+        String lua = String.format(
+            "return box.space.%s:delete('%s')",
+            spaceName, key
+        );
+        
+        
+        return client.eval(lua)
+                .thenApply(response -> {
+                    List<?> result = response.get();
+                    boolean deleted = result != null && !result.isEmpty();
+                    return deleted;
                 })
                 .exceptionally(ex -> {
                     return false;

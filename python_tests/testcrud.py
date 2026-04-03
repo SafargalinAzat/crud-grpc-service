@@ -91,6 +91,8 @@ def main():
         print(f"DELETE: success={delete_response.success}, found={delete_response.found}")
     except Exception as e:
         print(f"DELETE failed: {e}")
+
+    time.sleep(1)
     
 
     print("\n8. Тест GET после DELETE")
